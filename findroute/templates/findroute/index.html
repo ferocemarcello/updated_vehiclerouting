@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1.0">
+
+<title>VRP Solver</title>
+</head>
+<body>
+
+<div class="main" style="height:100%; width:100%;">
+    <form enctype="multipart/form-data" method="post" action="displayRoutes" novalidate>
+            {% csrf_token %}
+        {{ hereapicredentials }}
+        <br>
+        <br>
+<input type="radio" name="inputtype" checked onclick={document.getElementById("routesfileuploader").required=false;document.getElementById("coordinatesfileuploader").required=true;document.getElementById("distancesfileuploader").required=true;document.getElementById("routeupload").style.display='none';document.getElementById("dataupload").style.display='';}>
+        <label>Upload customers data</label>
+        <br><br>
+        <div id="dataupload">
+            &nbsp;&nbsp;&nbsp;&nbsp;
+        {{ coordinatesfileform}}
+        {{ distancesfileform}}
+            <input type="submit" value="Send data and compute and show routes">
+        </div>
+        <br>
+        Or
+        <br>
+
+            <label>Upload routes</label>
+        <br><br>
+            <input type="radio" name="inputtype" onclick={document.getElementById("routesfileuploader").required=true;document.getElementById("coordinatesfileuploader").required=false;document.getElementById("distancesfileuploader").required=false;document.getElementById("dataupload").style.display='none';document.getElementById("routeupload").style.display='';}>
+        <div id="routeupload">
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        {{ routesfileuploader }}
+            <input type="submit" value="Send data and show routes">
+        </div>
+        </form>
+    <script>document.getElementById("routeupload").style.display='none';document.getElementById("routesfileuploader").required=false;document.getElementById("coordinatesfileuploader").required=true;document.getElementById("distancesfileuploader").required=true;</script>
+</div>
+</body>
+</html>

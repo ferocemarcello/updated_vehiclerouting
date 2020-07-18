@@ -1,0 +1,487 @@
+{% load static %}
+<html>
+  <head>
+      <title>VRP Solver</title>
+  <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+  <script type="text/javascript" src="http://js.api.here.com/v3/3.0/mapsjs-core.js" charset="utf-8"></script>
+<script type="text/javascript" src="http://js.api.here.com/v3/3.0/mapsjs-service.js" charset="utf-8"></script>
+<script type="text/javascript" src="http://js.api.here.com/v3/3.0/mapsjs-pano.js" charset="utf-8"></script>
+
+<script type="text/javascript" src="https://js.api.here.com/v3/3.0/mapsjs-ui.js"></script>
+<script type="text/javascript" src="https://js.api.here.com/v3/3.0/mapsjs-mapevents.js"></script>
+      <link rel="stylesheet" type="text/css" href="https://js.api.here.com/v3/3.0/mapsjs-ui.css"/><!--?dp-version=1542186754 1526040296-->
+      <style>
+.collapsible {
+  background-color: #777;
+  color: white;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 15px;
+}
+
+.active, .collapsible:hover {
+  background-color: #555;
+}
+
+.collapsible:after {
+  content: '\002B';
+  color: white;
+  font-weight: bold;
+  float: right;
+  margin-left: 5px;
+}
+
+.active:after {
+  content: "\2212";
+}
+
+.content {
+  padding: 0 60px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+  background-color: #f1f1f1;
+}
+</style>
+  </head>
+  <body>
+  <div id="map" style="position:absolute; width:75%; height:100%; background:grey"></div>
+  <div id="panel" style="position:absolute; width:23%; left:76%; height:100%; background:inherit" >
+      <form enctype="multipart/form-data" method="post" onsubmit="return false">
+      {% csrf_token %}
+          {{ checkboxes }}
+
+    <input type="submit" value="Show" onclick="showhideroutes()">
+        </form>
+      <div id="routedetails"><p>Route Details:</p></div><!--https://www.w3schools.com/howto/howto_js_collapsible.asp-->
+  </div>
+  <script>
+
+      //https://codepen.io/euconectei/pen/XbmRXo
+      function showhideroutes() {
+          removedCustomers=[];
+          shownCustomers=[];
+          var lenallcustom=0;
+          for(var i=0;i<polylines.length;i++){
+              var weeknumber=Math.ceil((i+1)/Object.keys(routeall[0]).length);
+              var daynumber=i+1-(polylines.length/Object.keys(routeall).length)*(Math.floor(i/Object.keys(routeall[0]).length));
+
+              var customerOneRoute = routeall[weeknumber-1][daynumber-1][1].constructor();//deep copy of the array
+    for (var attr in routeall[weeknumber-1][daynumber-1][1]) {
+        if (routeall[weeknumber-1][daynumber-1][1].hasOwnProperty(attr)) customerOneRoute[attr] = routeall[weeknumber-1][daynumber-1][1][attr];
+    }
+    customerOneRoute.pop();customerOneRoute.shift();//removing depot from the indices
+              if(!(document.getElementById("id_routeselection_"+i)).checked){
+                  try {
+                      map.removeObject(polylines[i]);
+                      map.removeObject(manueversgroup[i]);
+                  }
+                  catch(err){
+                      null;
+                  }
+                  for(var j=0;j<customerOneRoute.length;j++){
+                      if(!(removedCustomers.includes(customerOneRoute[j]))){
+                          removedCustomers.push(customerOneRoute[j]);
+                      }
+                  }
+              }
+              else{
+                  for(var j=0;j<customerOneRoute.length;j++){
+                      if(!(shownCustomers.includes(customerOneRoute[j]))){
+                          shownCustomers.push(customerOneRoute[j]);
+                      }
+                  }
+                  map.addObject(polylines[i]);
+                  map.addObject(manueversgroup[i]);
+              }
+          }
+          for(var i=0;i<shownCustomers.length;i++){
+              var customerindex=shownCustomers[i];
+              if(customerindex!=0){//not depot
+                  map.addObject(customerMarkerDict[customerindex]);
+              }
+          }
+          for(var i=0;i<removedCustomers.length;i++){
+              var customerindex=removedCustomers[i];
+              if((!(shownCustomers.includes(removedCustomers[i])))&&customerindex!=0){//not depot
+                  try {
+                      map.removeObject(customerMarkerDict[customerindex]);
+                  }
+                  catch (err) {null;}//if already removed
+              }
+          }
+      }
+function calculateRouteFromAtoB (platform,waypoints,col,weeknumber,daynumber) {
+  var router = platform.getRoutingService(),
+    routeRequestParams = {
+      mode: 'fastest;car',
+      representation: 'display',
+      routeattributes : 'waypoints,summary,shape,legs',
+      maneuverattributes: 'direction,action',
+			language: 'en-US',//en-gb,en-us,de-de,it-IT
+    };
+  for(var i=0; i<waypoints.length;i++){
+    s='waypoint'+(i);
+    routeRequestParams[s]=waypoints[i];
+}
+
+  router.calculateRoute(
+    routeRequestParams,
+    onSuccResult=function(result) {
+    onSuccess(result, col,weeknumber,daynumber);//from 0 to 1, from 0 to 4
+},
+    onError
+  );
+}
+/**
+ * This function will be called once the Routing REST API provides a response
+ * @param  {Object} result          A JSONP object representing the calculated route
+ *
+ * see: https://developer.here.com/rest-apis/documentation/routing/topics/resource-type-calculate-route.html
+ */
+function onSuccess(result,col,weeknumber,daynumber) {
+    //['rgba(0, 128, 255, 0.7)','red','orange','green','SaddleBrown','DarkOrchid','black','grey','Violet','Navy'];
+  var route = result.response.route[0];
+ /*
+  * The styling of the route response on the map is entirely under the developer's control.
+  * A representitive styling can be found the full JS + HTML code of this example
+  * in the functions below:
+  */
+  addRouteShapeToMap(route,col,weeknumber,daynumber);
+  addManueversToMap(route,weeknumber,daynumber);
+
+  // ... etc.
+}
+
+/**
+ * This function will be called if a communication error occurs during the JSON-P request
+ * @param  {Object} error  The error message received.
+ */
+function onError(error) {
+  alert('Error in showing the route!');
+}
+
+// set up containers for the map  + panel
+var mapContainer = document.getElementById('map');
+
+//Step 1: initialize communication with the platform
+var platform = new H.service.Platform({
+  app_id: '{{ here_app_id }}',
+  app_code: '{{ here_app_code }}',
+  useCIT: true,
+  useHTTPS: true
+});
+
+var defaultLayers = platform.createDefaultLayers();
+   defaultLayers.normal.map.setMax(50);
+
+platform.configure(H.map.render.panorama.RenderEngine);
+
+//Step 2: initialize a map
+map = new mapsjs.Map(mapContainer, defaultLayers.normal.map, {
+  });
+
+//Step 3: make the map interactive
+// MapEvents enables the event system
+// Behavior implements default interactions for pan/zoom (also on mobile touch environments)
+var behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+
+// Create the default UI components
+var ui = H.ui.UI.createDefault(map, defaultLayers,'en-US');
+
+
+// Hold a reference to any infobubble opened
+var bubble;
+
+/**
+ * Opens/Closes a infobubble
+ * @param  {H.geo.Point} position     The location on the map.
+ * @param  {String} text              The contents of the infobubble.
+ */
+function openBubble(position, text){
+ if(!bubble){
+    bubble =  new H.ui.InfoBubble(
+      position,
+      // The FO property holds the province name.
+      {content: text});
+    ui.addBubble(bubble);
+  } else {
+    bubble.setPosition(position);
+    bubble.setContent(text);
+    bubble.open();
+  }
+}
+
+
+/**
+ * Creates a H.map.Polyline from the shape of the route and adds it to the map.
+ * @param {Object} route A route as received from the H.service.RoutingService
+ */
+function addRouteShapeToMap(route,col,weeknumber,daynumber){
+  var strip = new H.geo.Strip(),
+    routeShape = route.shape,
+    polyline;
+
+  routeShape.forEach(function(point) {
+    var parts = point.split(',');
+    strip.pushLatLngAlt(parts[0], parts[1]);
+  });
+
+  polyline = new H.map.Polyline(strip, {
+    style: {
+      lineWidth: 6,
+      strokeColor: col
+    },
+    arrows: { fillColor: 'white', frequency: 2, width: 1.2, length: 0.9 },
+    visibility:true
+  });
+  // Add the polyline to the map
+  map.addObject(polyline);
+  // And zoom to its bounding rectangle
+  map.setViewBounds(polyline.getBounds(), true);
+  polylines[weeknumber*5+daynumber]=polyline;
+}
+
+
+/**
+ * Creates a series of H.map.Marker points from the route and adds them to the map.
+ * @param {Object} route  A route as received from the H.service.RoutingService
+ */
+function addManueversToMap(route,weeknumber,daynumber){
+  var svgMarkup = '<svg width="18" height="18" ' +
+    'xmlns="http://www.w3.org/2000/svg">' +
+    '<circle cx="8" cy="8" r="8" ' +
+      'fill="#1b468d" stroke="white" stroke-width="1"  />' +
+    '</svg>',
+    dotIcon = new H.map.Icon(svgMarkup, {anchor: {x:8, y:8}}),
+    group = new  H.map.Group(),
+    i,
+    j;
+
+  // Add a marker for each maneuver
+  for (i = 0;  i < route.leg.length; i += 1) {
+    for (j = 0;  j < route.leg[i].maneuver.length; j += 1) {
+      // Get the next maneuver.
+      maneuver = route.leg[i].maneuver[j];
+      // Add a marker to the maneuvers group
+      var marker =  new H.map.Marker({
+        lat: maneuver.position.latitude,
+        lng: maneuver.position.longitude} ,
+        {icon: dotIcon});
+      marker.instruction = maneuver.instruction;
+      group.addObject(marker);
+    }
+  }
+
+  group.addEventListener('tap', function (evt) {
+    map.setCenter(evt.target.getPosition());
+    openBubble(
+       evt.target.getPosition(), evt.target.instruction);
+  }, false);
+  /*map.addEventListener ('tap', function(evt){//function that should handle expection of not founding street level, doesn't work
+    var coord = map.screenToGeo(evt.currentPointer.viewportX,
+            evt.currentPointer.viewportY);
+    H.map.render.panorama.RenderEngine.getClosestPanoramas(//https://developer.here.com/documentation/maps/topics/panorama.html
+    coord, function(panoramaData) {
+    if (panoramaData.length) {
+        console.log("good for street level");
+    }
+    else {console.log("not good for street level");}
+  });
+  });*/
+
+  // Add the maneuvers group to the map
+    manueversgroup[weeknumber*5+daynumber]=group;
+
+  map.addObject(group);
+}
+
+
+/**
+ * Creates a series of H.map.Marker points from the route and adds them to the map.
+ * @param {Object} route  A route as received from the H.service.RoutingService
+ */
+function addWaypointsToPanel(waypoints){
+
+
+
+  var nodeH3 = document.createElement('h3'),
+    waypointLabels = [],
+    i;
+
+
+   for (i = 0;  i < waypoints.length; i += 1) {
+    waypointLabels.push(waypoints[i].label)
+   }
+
+   nodeH3.textContent = waypointLabels.join(' - ');
+}
+
+/**
+ * Creates a series of H.map.Marker points from the route and adds them to the map.
+ * @param {Object} route  A route as received from the H.service.RoutingService
+ */
+function addSummaryToPanel(summary){
+  var summaryDiv = document.createElement('div'),
+   content = '';
+   content += '<b>Distância total</b>: ' + summary.distance  + 'm. <br/>';
+   content += '<b>Tempo de viagem</b>: ' + summary.travelTime.toMMSS() + ' (no trânsito atual)';
+
+
+  summaryDiv.style.fontSize = 'small';
+  summaryDiv.style.marginLeft ='5%';
+  summaryDiv.style.marginRight ='5%';
+  summaryDiv.innerHTML = content;
+}
+
+/**
+ * Creates a series of H.map.Marker points from the route and adds them to the map.
+ * @param {Object} route  A route as received from the H.service.RoutingService
+ */
+function addManueversToPanel(route){
+
+
+
+  var nodeOL = document.createElement('ol'),
+    i,
+    j;
+
+  nodeOL.style.fontSize = 'small';
+  nodeOL.style.marginLeft ='5%';
+  nodeOL.style.marginRight ='5%';
+  nodeOL.className = 'directions';
+
+     // Add a marker for each maneuver
+  for (i = 0;  i < route.leg.length; i += 1) {
+    for (j = 0;  j < route.leg[i].maneuver.length; j += 1) {
+      // Get the next maneuver.
+      maneuver = route.leg[i].maneuver[j];
+
+      var li = document.createElement('li'),
+        spanArrow = document.createElement('span'),
+        spanInstruction = document.createElement('span');
+
+      spanArrow.className = 'arrow '  + maneuver.action;
+      spanInstruction.innerHTML = maneuver.instruction;
+      li.appendChild(spanArrow);
+      li.appendChild(spanInstruction);
+
+      nodeOL.appendChild(li);
+    }
+  }
+
+}
+/*<div>Icons made by <a href="https://www.flaticon.com/authors/srip" title="srip">srip</a> from <a href="https://www.flaticon.com/" 			    title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" 			    title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
+
+<div>Icons made by <a href="https://www.flaticon.com/authors/pixel-perfect" title="Pixel perfect">Pixel perfect</a> from <a href="https://www.flaticon.com/" 			    title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" 			    title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>*/
+
+var coords={{ coords|safe}};
+
+var depotMarkerIcon=new H.map.Icon("{% static 'findroute/depotIcon.png' %}", {size: {w: 32, h: 32}});
+var depotMarker=new H.map.Marker({lat:coords[0][0], lng:coords[0][1]},{icon:depotMarkerIcon});
+depotMarker.setData(coords[0][0]+","+coords[0][1]);
+
+depotMarker.addEventListener('tap', function (evt) {
+    map.setCenter(evt.target.getPosition());
+    openBubble(
+       evt.target.getPosition(), evt.target.getData());
+  }, false);
+map.addObject(depotMarker);
+var customerMarkerDict={};
+var dayNames=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+var routeall={{route_all|safe}};
+for(var i=1; i<coords.length;i++){//excluding depot
+    var customerMarkerIcon=new H.map.Icon("{% static 'findroute/customerIcon.png' %}", {size: {w: 32, h: 32}});
+    var customerMarker=new H.map.Marker({lat:coords[i][0], lng:coords[i][1]},{icon:customerMarkerIcon});
+    var infomarkertext="";
+    infomarkertext=infomarkertext+coords[i][0]+", "+coords[i][1];
+    for(var j=0;j<Object.keys(routeall).length;j++){
+        for(var z=0;z<Object.keys(routeall[j]).length;z++){
+            if(routeall[j][z][1].includes(i)){
+                infomarkertext=infomarkertext+"\n"+"Week "+(j+1)+" "+dayNames[(z)]+" Customer order "+routeall[j][z][1].indexOf(i);
+            }
+        }
+    }
+    customerMarker.setData(infomarkertext);
+    customerMarker.addEventListener("tap", markerlistener, false);
+    function markerlistener(evt){
+  map.setCenter(evt.target.getPosition());
+  openBubble(evt.target.getPosition(), evt.target.getData());
+}
+    customerMarkerDict[i]=customerMarker;
+  map.addObject(customerMarkerDict[i]);
+}
+
+var route_summaries_dumps={{ route_summaries_dumps|safe }};
+var routesummaries=[];
+for(var i=0;i<Object.keys(route_summaries_dumps).length;i++){
+    for(var j=0;j<Object.keys(route_summaries_dumps[0]).length;j++){
+        routesummaries.push(route_summaries_dumps[i][j]);
+}
+}
+var polylines=Array(Object.keys(routeall).length*Object.keys(routeall[0]).length).fill(null);
+var manueversgroup=Array(Object.keys(routeall).length*Object.keys(routeall).length).fill(null);
+var colors=['Blue','Red','Orange','Green','SaddleBrown','DarkOrchid','Black','Grey','Violet','Navy'];
+for(var i=0;i<Object.keys(routeall).length;i++){
+    for(var j=0;j<Object.keys(routeall[i]).length;j++){
+        var color=colors[i*5+j];
+        var waypoints=[];
+        for(var z=0;z<routeall[i][j][0].length;z++){
+            waypoints.push("stopOver!"+routeall[i][j][0][z][0]+','+routeall[i][j][0][z][1]);
+        }
+        calculateRouteFromAtoB(platform,waypoints,color,i,j);
+    }
+}
+  </script>
+  <script>
+      var dayNames=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+      for(var i=0;i<polylines.length;i++){
+          var collbutton = document.createElement("button");
+collbutton.id="route"+i;
+collbutton.classList.add("collapsible");
+var weeknumber=Math.ceil((i+1)/Object.keys(routeall[0]).length);
+var daynumber=i+1-(polylines.length/Object.keys(routeall).length)*(Math.floor(i/Object.keys(routeall[0]).length));
+var buttontext = document.createTextNode("Route "+(i+1)+" - Week "+weeknumber+" - "+dayNames[daynumber-1]+" - "+ colors[i]);
+collbutton.appendChild(buttontext);
+collbutton.style.backgroundColor=colors[i];
+var routedetails = document.getElementById("routedetails");
+routedetails.appendChild(collbutton);
+
+var collapsibletextdiv = document.createElement("div");
+collapsibletextdiv.classList.add("content");
+var collapsibletextparagraph= document.createElement("p");
+var routedetailstring="";
+    for (var j=0;j<routesummaries[i].length;j++) {
+        if(j>0){
+            routedetailstring=routedetailstring+"\n";
+        }
+            routedetailstring = routedetailstring + routesummaries[i][j];
+
+    }
+var collapsibletext = document.createTextNode(routedetailstring);
+collapsibletextparagraph.appendChild(collapsibletext);
+collapsibletextdiv.appendChild(collapsibletextparagraph);
+routedetails.appendChild(collapsibletextdiv);
+      }
+document.getElementById("map").style.height=document.body.scrollHeight;
+      map.getViewPort().resize();
+
+          var coll = document.getElementsByClassName("collapsible");
+for (var i = 0; i < coll.length; i++) {
+  coll[i].addEventListener("click", function() {
+    this.classList.toggle("active");
+    var content = this.nextElementSibling;
+    if (content.style.maxHeight){
+      content.style.maxHeight = null;
+    } else {
+      content.style.maxHeight = content.scrollHeight + "px";
+    }
+  });
+}
+</script>
+  </body>
+</html>

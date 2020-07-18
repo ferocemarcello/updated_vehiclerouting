@@ -1,0 +1,7 @@
+openpyxl==2.5.1
+scipy==1.2.0
+Django==2.1
+geopy==1.16.0
+numpy==1.15.2
+ortools==6.9.5824
+scikit_learn==0.20.2
