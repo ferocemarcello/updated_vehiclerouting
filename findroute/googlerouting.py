@@ -196,7 +196,7 @@ class GoogleTWVRP:
             # Convert from routing variable Index to time matrix NodeIndex.
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
-            return data['time_matrix'][from_node][to_node]
+            return data['time_matrix'][from_node][to_node]+data["service_times"][from_node]
 
         transit_callback_index = routing.RegisterTransitCallback(time_callback)
         # Define cost of each arc.
@@ -223,8 +223,6 @@ class GoogleTWVRP:
 
         # Add time window constraints for each location except depot.
         for location_idx, time_window in enumerate(data['time_windows']):
-            if location_idx == 0:
-                continue
             index = manager.NodeToIndex(location_idx)
             time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
         # Add time window constraints for each vehicle start node.

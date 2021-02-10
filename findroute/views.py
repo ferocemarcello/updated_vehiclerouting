@@ -39,6 +39,13 @@ def displayRoutes(request):
     uploadform = UploadFileForm(None,request.POST, request.FILES)
     hereform = HereApiForm(request.POST)
     if request.method == 'POST' and uploadform.is_valid() and hereform.is_valid():
+        '''calculate_routes = False
+        if len(request.FILES.getlist('file_field')) == 3:
+            if str(request.FILES.getlist('file_field')[2]) == 'Input_route_example_time.xlsx':
+                calculate_routes = False
+            else:
+                calculate_routes = True'''
+        #if len(request.FILES.getlist('file_field')) == 2 or (len(request.FILES.getlist('file_field')) == 3 and calculate_routes):
         if len(request.FILES.getlist('file_field')) == 2:
             coordinatesfile = request.FILES.getlist('file_field')[0]
             distancesfile = request.FILES.getlist('file_field')[1]
@@ -53,10 +60,9 @@ def displayRoutes(request):
                     route_summaries[i][j][2] = "Number of costumers: " + str(route_summaries[i][j][2])
             all_data = routeComputation[2]
             coords = [all_data[x]['gps_pos'] for x in range(len(all_data))]
-            filename=routeComputation[3]
+        #if len(request.FILES.getlist('file_field')) == 1 or (len(request.FILES.getlist('file_field')) == 3 and not calculate_routes):
         if len(request.FILES.getlist('file_field')) == 1:
             try:
-                filename=None
                 routesfile = request.FILES.getlist('file_field')[0]
                 route_summaries,coords=DataInfo.getRoutes(routesfile)
                 routes = DataInfo.getRoutesFromXls(routesfile,coords)
