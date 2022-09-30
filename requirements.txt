@@ -5,7 +5,7 @@ et-xmlfile==1.0.1
 geographiclib==1.50
 geopy==2.0.0
 jdcal==1.4.1
-joblib==0.16.0
+joblib==1.2.0
 numpy==1.22.0
 openpyxl==3.0.4
 ortools==7.7.7810
