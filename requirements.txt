@@ -1,6 +1,6 @@
 asgiref==3.2.10
 certifi==2023.7.22
-Django==3.1.14
+Django==3.2.24
 et-xmlfile==1.0.1
 geographiclib==1.50
 geopy==2.0.0
