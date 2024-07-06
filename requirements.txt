@@ -1,5 +1,5 @@
 asgiref==3.2.10
-certifi==2023.7.22
+certifi==2024.7.4
 Django==3.2.25
 et-xmlfile==1.0.1
 geographiclib==1.50
